@@ -3,56 +3,82 @@ using UnityEngine.SceneManagement;
 
 public class Player : MonoBehaviour
 {
-    public float Gravity = 10f;
-    public float Accel = 10f;
-    float v = 0;
+    public float JumpSpeed = 10;
+    public Collider2D BottomCollider;
+    public CompositeCollider2D TerrainCollider;
 
     public AudioClip UpSound;
     public AudioClip DownSound;
 
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
+    private Rigidbody2D rb;
+    private bool grounded;
+    private int jumpCount = 0; // 점프 횟수를 추적하기 위한 변수
+
     void Start()
     {
-        v = 0;
+        rb = GetComponent<Rigidbody2D>();
     }
 
-    // Update is called once per frame
     void Update()
     {
-        if (Input.GetButtonDown("Jump"))
+        // 착지 여부 확인
+        bool wasGrounded = grounded;
+        grounded = BottomCollider.IsTouching(TerrainCollider);
+
+        // 착지 시 점프 횟수 초기화
+        if (grounded && !wasGrounded)
         {
-            GetComponent<AudioSource>().PlayOneShot(UpSound);
-        }
-        if (Input.GetButtonUp("Jump"))
-        {
-            GetComponent<AudioSource>().PlayOneShot(DownSound);
+            jumpCount = 0;
         }
 
-        if (Input.GetButton("Jump"))
+        if (Input.GetButtonDown("Jump") && jumpCount < 2) // 최대 점프 횟수 제한
         {
-            v -= Accel * Time.deltaTime;
+            if (jumpCount == 0)
+            {
+                Jump(); // 첫 번째 점프
+                GetComponent<Animator>().SetTrigger("Jump");
+            }
+            else if (jumpCount == 1) // 2단 점프 조건
+            {
+                DoubleJump();
+                GetComponent<Animator>().SetTrigger("DoubleJump"); // 2단 점프 시 애니메이션 트리거
+            }
         }
-        else
+        else if (!grounded && rb.linearVelocity.y <= 0)
         {
-            v += Gravity * Time.deltaTime;
+            GetComponent<Animator>().SetTrigger("Fall"); // 점프 후 낙하 애니메이션
         }
+    }
 
+    private void Jump()
+    {
+        rb.linearVelocity = new Vector2(rb.linearVelocity.x, JumpSpeed);
+        jumpCount++;
+        if (UpSound != null)
+            AudioSource.PlayClipAtPoint(UpSound, transform.position);
+    }
+
+    private void DoubleJump()
+    {
+        rb.linearVelocity = new Vector2(rb.linearVelocity.x, 1.2f*JumpSpeed); // 2단 점프 시 y 방향 속도 재설정
+        jumpCount++; // 점프 횟수 증가
+        if (UpSound != null)
+            AudioSource.PlayClipAtPoint(UpSound, transform.position);
     }
 
     private void FixedUpdate()
     {
-        transform.Translate(Vector2.down * v * Time.fixedDeltaTime);
+        grounded = BottomCollider.IsTouching(TerrainCollider);
+
+        if (Input.GetKey(KeyCode.J) && grounded)
+        {
+            Debug.Log("slide");
+            GetComponent<Animator>().SetTrigger("Slide");
+        }
     }
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        if (collision.gameObject.CompareTag("Wall") )
-        {
-            int score = (int)GameManager.Instance.Score;
-
-            PlayerPrefs.SetInt("Score", score);
-
-            SceneManager.LoadScene("GameOverScene");
-        }
+        // 기타 충돌 처리 코드
     }
 }
